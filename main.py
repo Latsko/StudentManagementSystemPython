@@ -1,7 +1,7 @@
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget, QGridLayout, QLineEdit, QPushButton, QMainWindow, \
-    QTableWidget
-
+    QTableWidget, QTableWidgetItem
+import sqlite3
 import sys
 
 class MainWindow(QMainWindow):
@@ -20,16 +20,26 @@ class MainWindow(QMainWindow):
         about_action.setMenuRole(QAction.MenuRole.NoRole)
 
         self.table = QTableWidget()
+        self.resize(400,300)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(("Id", "Name", "Course", "Mobile"))
+        self.table.verticalHeader().setVisible(False)
         self.setCentralWidget(self.table)
 
     def load_data(self):
-        self.table
+        connection = sqlite3.connect("database.db")
+        result = connection.execute("SELECT * FROM students")
+        self.table.setRowCount(0)
+        for row_number, row_data in enumerate(result):
+            self.table.insertRow(row_number)
+            for column_number, column_data in enumerate(row_data):
+                self.table.setItem(row_number, column_number, QTableWidgetItem(str(column_data)))
 
+        connection.close()
 
 app = QApplication(sys.argv)
 age_calculator = MainWindow()
+age_calculator.load_data()
 age_calculator.show()
 
 sys.exit(app.exec())
