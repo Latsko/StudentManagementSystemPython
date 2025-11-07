@@ -7,23 +7,25 @@ from PyQt6.QtWidgets import QApplication, QLineEdit, QPushButton, QMainWindow, \
     QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QComboBox, QToolBar, \
     QStatusBar, QLabel, QGridLayout, QMessageBox
 
+class DatabaseError(Exception):
+    """Custom exception for db-related errors"""
+    pass
 
 class DatabaseConnection:
     def __init__(self, database_file="database.db"):
         self.database_file = database_file
 
-    def connect(self):
-        pass
-
     def query(self, sql, params=(), fetch=False):
-        with sqlite3.connect(self.database_file) as connection:
-            cursor = connection.cursor()
-            cursor.execute(sql, params)
-            if fetch:
-                return cursor.fetchall()
-            connection.commit()
-            return None
-
+        try:
+            with sqlite3.connect(self.database_file) as connection:
+                cursor = connection.cursor()
+                cursor.execute(sql, params)
+                if fetch:
+                    return cursor.fetchall()
+                connection.commit()
+                return None
+        except sqlite3.Error as error:
+            raise DatabaseError(f"Database Error: {error}")
 
 class MainWindow(QMainWindow):
     instance = None
@@ -186,13 +188,20 @@ class EditDialog(QDialog):
         self.setLayout(layout)
 
     def update_student(self):
-        connection = DatabaseConnection()
-        connection.query("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
-                       (self.student_name.text(), self.course_name.currentText(), self.mobile.text(),
-                        self.student_id))
-        MainWindow.instance.load_data()
+        if not self.student_name or not self.mobile:
+            QMessageBox.warning(self, "Missing Info", "Please fill in all fields.")
+            return
 
-        self.close()
+        try:
+            connection = DatabaseConnection()
+            connection.query("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
+                           (self.student_name.text(), self.course_name.currentText(), self.mobile.text(),
+                            self.student_id))
+            MainWindow.instance.load_data()
+            QMessageBox.information(None, "Success", "Student updated successfully.")
+            self.close()
+        except DatabaseError as e:
+            QMessageBox.critical(None, "Database Error", str(e))
 
 class DeleteDialog(QDialog):
     def __init__(self):
@@ -215,16 +224,16 @@ class DeleteDialog(QDialog):
         index = student_management_sys.table.currentRow()
         student_id = student_management_sys.table.item(index, 0).text()
 
-        connection = DatabaseConnection()
-        connection.query("""DELETE FROM students WHERE id = ?""", (student_id,))
-        MainWindow.instance.load_data()
-
-
-        self.close()
-
-        confirmation_widget = QMessageBox()
-        confirmation_widget.setText("The record was deleted successfully")
-        confirmation_widget.exec()
+        try:
+            connection = DatabaseConnection()
+            connection.query("""DELETE FROM students WHERE id = ?""", (student_id,))
+            MainWindow.instance.load_data()
+            confirmation_widget = QMessageBox()
+            confirmation_widget.setText("The record was deleted successfully")
+            confirmation_widget.exec()
+            self.close()
+        except DatabaseError as e:
+            QMessageBox.critical(None, "Database Error", str(e))
 
 class InsertDialog(QDialog):
     def __init__(self):
@@ -258,11 +267,21 @@ class InsertDialog(QDialog):
         name = self.student_name.text()
         course = self.course_name.itemText(self.course_name.currentIndex())
         mobile = self.mobile.text()
-        connection = DatabaseConnection()
-        connection.query("INSERT INTO students (name, course, mobile) VALUES (?, ?, ?)",
-                       (name, course, mobile))
 
-        MainWindow.instance.load_data()
+        if not name or not mobile:
+            QMessageBox.information(None, "Warning", "Please enter your name and mobile")
+            return
+
+        try:
+            connection = DatabaseConnection()
+            connection.query("INSERT INTO students (name, course, mobile) VALUES (?, ?, ?)",
+                           (name, course, mobile))
+
+            MainWindow.instance.load_data()
+            QMessageBox.information(None, "Success", "Student added successfully")
+            self.close()
+        except DatabaseError as e:
+            QMessageBox.information(None, "Database Error", str(e))
 
 
 class SearchDialog(QDialog):
@@ -283,22 +302,29 @@ class SearchDialog(QDialog):
 
     def search_student(self):
         name = self.searched_student_name.text()
-        connection = DatabaseConnection()
-        result = connection.query("SELECT * FROM students WHERE name = ?", (name,), fetch=True)
-        rows = list(result)
-        print(rows)
+        if not name:
+            QMessageBox.warning(self, "Missing Info", "Please enter the name.")
+            return
+        try:
+            connection = DatabaseConnection()
+            result = connection.query("SELECT * FROM students WHERE name = ?", (name,), fetch=True)
+            rows = list(result)
+            print(rows)
 
-        student_management_sys.table.clearSelection()
+            student_management_sys.table.clearSelection()
 
-        items = student_management_sys.table.findItems(name, Qt.MatchFlag.MatchFixedString)
-        if items:
-            for item in items:
-                print(item)
-                student_management_sys.table.item(item.row(), 1).setSelected(True)
-                student_management_sys.table.scrollToItem(item)
-            self.close()
-        else:
-            print("Not found")
+            items = student_management_sys.table.findItems(name, Qt.MatchFlag.MatchFixedString)
+            if items:
+                for item in items:
+                    print(item)
+                    student_management_sys.table.item(item.row(), 1).setSelected(True)
+                    student_management_sys.table.scrollToItem(item)
+                self.close()
+            else:
+                QMessageBox.information(None, "Info", "Student not found")
+                print("Not found")
+        except DatabaseError as e:
+            QMessageBox.critical(None, "Database Error", str(e))
 
 app = QApplication(sys.argv)
 student_management_sys = MainWindow()
