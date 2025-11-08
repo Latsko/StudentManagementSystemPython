@@ -83,12 +83,13 @@ class MainWindow(QMainWindow):
 
     def cell_clicked(self, row):
         current_row = row
+        student_id = self.table.item(row, 0).text()
 
         edit_button = QPushButton("Edit Record")
-        edit_button.clicked.connect(lambda _, r=current_row: self.open_edit_dialog(r))
+        edit_button.clicked.connect(lambda _, s=student_id: self.open_edit_dialog(s))
 
         delete_button = QPushButton("Delete Record")
-        delete_button.clicked.connect(lambda _, r=current_row: self.open_delete_dialog(r))
+        delete_button.clicked.connect(lambda _, s=student_id: self.open_delete_dialog(s))
 
         children = self.findChildren(QPushButton)
         if children:
@@ -107,12 +108,12 @@ class MainWindow(QMainWindow):
             for column_number, column_data in enumerate(row_data):
                 self.table.setItem(row_number, column_number, QTableWidgetItem(str(column_data)))
 
-    def open_edit_dialog(self, row):
-        MainWindow.edit(row)
+    def open_edit_dialog(self, sid):
+        MainWindow.edit(sid)
         self.load_data()
 
-    def open_delete_dialog(self, row):
-        MainWindow.delete(row)
+    def open_delete_dialog(self, sid):
+        MainWindow.delete(sid)
         self.load_data()
     # -------------------------
     # Static utility methods
@@ -133,14 +134,14 @@ class MainWindow(QMainWindow):
 
 
     @staticmethod
-    def edit(row):
-        dialog = EditDialog(row)
+    def edit(sid):
+        dialog = EditDialog(sid)
         dialog.exec()
 
 
     @staticmethod
-    def delete(row):
-        dialog = DeleteDialog(row)
+    def delete(sid):
+        dialog = DeleteDialog(sid)
         dialog.exec()
 
 
@@ -163,40 +164,51 @@ class AboutDialogMessage(QMessageBox):
 
 # noinspection PyTypeChecker
 class EditDialog(QDialog):
-    def __init__(self, row):
+    def __init__(self, sid):
         super().__init__(parent=None)
-        self.row = row
+        self.student_id = sid
         self.setWindowTitle("Update Student Data")
         self.setFixedWidth(300)
         self.setFixedHeight(300)
 
         layout = QVBoxLayout()
 
-        student_name = MainWindow.instance.table.item(row, 1).text()
-        self.student_name = QLineEdit(student_name)
-        self.student_name.setPlaceholderText("Name")
-        layout.addWidget(self.student_name)
+        try:
+            connection = DatabaseConnection()
+            result = connection.query("SELECT name, course, mobile FROM students WHERE id = ?",
+                                      (sid,), fetch=True)
+            if not result:
+                QMessageBox.critical(self, "Error", "Student not found.")
+                self.close()
+                return
+            name, course, mobile = map(str, result[0])
 
-        course_name = MainWindow.instance.table.item(row, 2).text()
-        self.course_name = QComboBox(parent=None)
-        courses = ["Biology", "Math", "Astronomy", "Physics"]
-        self.course_name.addItems(courses)
-        self.course_name.setCurrentText(course_name)
-        layout.addWidget(self.course_name)
+            self.student_name = QLineEdit(name)
+            self.student_name.setPlaceholderText("Name")
+            layout.addWidget(self.student_name)
 
-        student_mobile = MainWindow.instance.table.item(row, 3).text()
-        self.mobile = QLineEdit(student_mobile)
-        self.mobile.setPlaceholderText("Mobile")
-        layout.addWidget(self.mobile)
+            self.course_name = QComboBox(parent=None)
+            courses = ["Biology", "Math", "Astronomy", "Physics"]
+            self.course_name.addItems(courses)
+            self.course_name.setCurrentText(course)
+            layout.addWidget(self.course_name)
+
+            self.mobile = QLineEdit(mobile)
+            self.mobile.setPlaceholderText("Mobile")
+            layout.addWidget(self.mobile)
+
+        except DatabaseError as e:
+            QMessageBox.critical(self, "Database Error", str(e))
+            self.close()
+            return
 
         button = QPushButton("Submit")
-        button.clicked.connect(lambda _, r=row: self.update_student(r))
+        button.clicked.connect(lambda _, s=sid: self.update_student(s))
         layout.addWidget(button)
 
         self.setLayout(layout)
 
-    def update_student(self, row):
-        student_id = MainWindow.instance.table.item(row, 0).text()
+    def update_student(self, sid):
 
         if not self.student_name.text().strip() or not self.mobile.text().strip():
             QMessageBox.warning(self, "Missing Info", "Please fill in all fields.")
@@ -206,19 +218,18 @@ class EditDialog(QDialog):
             connection = DatabaseConnection()
             connection.query("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
                            (self.student_name.text(), self.course_name.currentText(), self.mobile.text(),
-                            student_id))
+                            sid))
             MainWindow.instance.load_data()
             QMessageBox.information(None, "Success", "Student updated successfully.")
             self.close()
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
 
-
 # noinspection PyTypeChecker
 class DeleteDialog(QDialog):
-    def __init__(self, row):
+    def __init__(self, sid):
         super().__init__(parent=None)
-        self.row = row
+        self.sid = sid
         self.setWindowTitle("Delete Student Data")
 
         layout = QGridLayout(parent=None)
@@ -231,10 +242,9 @@ class DeleteDialog(QDialog):
         layout.addWidget(no, 1, 1)
         self.setLayout(layout)
 
-        yes.clicked.connect(lambda _, r=row: self.delete_student(r))
+        yes.clicked.connect(lambda _, s=sid: self.delete_student(s))
 
-    def delete_student(self, row):
-        sid = MainWindow.instance.table.item(row, 0).text()
+    def delete_student(self, sid):
         try:
             connection = DatabaseConnection()
             connection.query("""DELETE FROM students WHERE id = ?""", (sid,))
