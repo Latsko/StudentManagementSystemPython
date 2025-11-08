@@ -209,8 +209,9 @@ class AboutDialogMessage(QMessageBox):
         super().__init__()
         self.setWindowTitle("About")
         content = """
-        This app was created on the demand of a University Python course
-        and should contain all the necessary knowledge for it's completion.
+        Created for a University Python course, this app showcases key Python skills
+        including database handling, object-oriented programming, and building
+        intuitive GUIs with PyQt6.
         """
         self.setText(content)
 
