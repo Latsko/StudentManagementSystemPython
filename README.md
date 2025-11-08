@@ -1,17 +1,53 @@
-Student Management System
+# 🏫 Student Management System (Python & PyQt6)
 
-A Python-based desktop application for managing student records, built with PyQt6 and SQLite. This project demonstrates GUI development, database interaction, and clean object-oriented programming principles, including encapsulation, polymorphism, and modular design.
+A **desktop application** for managing student records, built with **Python**, **PyQt6**, and **SQLite**.  
+Designed for educational purposes and real-world usability in small student databases.
 
-Features
+---
 
-Add, Edit, Delete, and Search Students
+## ✨ Features
 
-Responsive and user-friendly interface with tooltips, colored headers, and alternating row colors
+### ✅ Core Functionality
+- **Add, Edit, Delete** student records
+- **Search** students by name
+- Automatic table updates after operations
 
-Confirmation dialogs for deletion and warnings for missing data
+### 🖥️ UI / UX Enhancements
+- Responsive dialogs with automatic resizing
+- Intuitive **tooltips** and **confirmation dialogs** for safer operations
+- **Stylish table appearance**: alternating row colors, centered content, bold colored headers
+- Toolbar and status bar integration for a professional look
 
-Centralized database handling using SQLite
+### 🧩 Database Integration
+- Uses **SQLite** for lightweight, local database storage
+- Centralized `DatabaseConnection` class with custom error handling
 
-Polished UI/UX with icons, bold headers, and consistent styling
+### ⚙️ Code Quality
+- **Wrapper functions** for repetitive operations
+- **Magic methods** implemented for dialogs
+- Demonstrates **polymorphism** in dialog classes
+- Modular, clean architecture for maintainability
 
-Object-oriented design showcasing wrapper methods, static methods, and reusable dialogs
+---
+
+## 🛠️ Technologies Used
+- Python 3.x
+- PyQt6
+- SQLite3
+
+---
+
+## 🚀 Installation & Usage
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Latsko/StudentManagementSystemPython.git
+```
+2. Install required packages:
+```bash
+pip install PyQt6
+```
+3. Run the app
+```bash
+python main.py
+
