@@ -5,7 +5,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QLineEdit, QPushButton, QMainWindow, \
     QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QComboBox, QToolBar, \
-    QStatusBar, QLabel, QGridLayout, QMessageBox
+    QStatusBar, QLabel, QGridLayout, QMessageBox, QHeaderView
+
 
 class DatabaseError(Exception):
     """Custom exception for db-related errors"""
@@ -44,45 +45,57 @@ class MainWindow(QMainWindow):
         help_menu_item = self.menuBar().addMenu("&Help")
         edit_menu_item = self.menuBar().addMenu("&Edit")
 
-        # Menu bar setup
         add_student_action = QAction(QIcon("icons/add.png"), "Add Student", self)
         add_student_action.triggered.connect(self.insert)
         file_menu_item.addAction(add_student_action)
 
-        # Menu bar setup
         about_action = QAction("About", self)
         help_menu_item.addAction(about_action)
         about_action.setMenuRole(QAction.MenuRole.NoRole)
         about_action.triggered.connect(self.about)
 
-        # Menu bar setup
         search_action = QAction(QIcon("icons/search.png"), "Search", self)
         search_action.triggered.connect(self.search)
         edit_menu_item.addAction(search_action)
 
-        # Menu bar setup
+        # Table setup
         self.table = QTableWidget(parent=None)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(("Id", "Name", "Course", "Mobile"))
         self.table.verticalHeader().setVisible(False)
         self.setCentralWidget(self.table)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("alternate-background-color: #f2f2f2; background-color: #ffffff;")
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setToolTip("Click a row to select a student")
+        # Make the horizontal header text bold and colored
+        self.table.horizontalHeader().setHighlightSections(False)
+        self.table.horizontalHeader().setStyleSheet(
+            "QHeaderView::section {"
+            "background-color: #4CAF50;"  # green header background
+            "color: white;"  # text color
+            "font-weight: bold;"  # bold text
+            "font-size: 14px;"
+            "}"
+        )
 
-        # Menu bar setup
+        # Menu toolbar setup
         toolbar = QToolBar()
         toolbar.setMovable(True)
         self.addToolBar(toolbar)
         toolbar.addAction(add_student_action)
         toolbar.addAction(search_action)
 
-        # Menu bar setup
+        # Menu status bar setup
         self.statusBar = QStatusBar(parent=None)
         self.setStatusBar(self.statusBar)
 
-        # Menu bar setup
+        # When cell is clicked
         self.table.cellClicked.connect(self.cell_clicked)
 
     def cell_clicked(self, row):
-        current_row = row
         student_id = self.table.item(row, 0).text()
 
         edit_button = QPushButton("Edit Record")
@@ -90,6 +103,9 @@ class MainWindow(QMainWindow):
 
         delete_button = QPushButton("Delete Record")
         delete_button.clicked.connect(lambda _, s=student_id: self.open_delete_dialog(s))
+
+        edit_button.setToolTip("Edit the selected student")
+        delete_button.setToolTip("Delete the selected student")
 
         children = self.findChildren(QPushButton)
         if children:
@@ -106,7 +122,9 @@ class MainWindow(QMainWindow):
         for row_number, row_data in enumerate(result):
             self.table.insertRow(row_number)
             for column_number, column_data in enumerate(row_data):
-                self.table.setItem(row_number, column_number, QTableWidgetItem(str(column_data)))
+                item = QTableWidgetItem(str(column_data))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row_number, column_number, item)
 
     def open_edit_dialog(self, sid):
         MainWindow.edit(sid)
@@ -209,7 +227,6 @@ class EditDialog(QDialog):
         self.setLayout(layout)
 
     def update_student(self, sid):
-
         if not self.student_name.text().strip() or not self.mobile.text().strip():
             QMessageBox.warning(self, "Missing Info", "Please fill in all fields.")
             return
@@ -255,7 +272,6 @@ class DeleteDialog(QDialog):
             self.close()
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
-
 
 # noinspection PyTypeChecker
 class InsertDialog(QDialog):
