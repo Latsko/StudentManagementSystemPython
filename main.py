@@ -81,12 +81,14 @@ class MainWindow(QMainWindow):
         # Menu bar setup
         self.table.cellClicked.connect(self.cell_clicked)
 
-    def cell_clicked(self):
+    def cell_clicked(self, row):
+        current_row = row
+
         edit_button = QPushButton("Edit Record")
-        edit_button.clicked.connect(self.edit)
+        edit_button.clicked.connect(lambda _, r=current_row: self.open_edit_dialog(r))
 
         delete_button = QPushButton("Delete Record")
-        delete_button.clicked.connect(self.delete)
+        delete_button.clicked.connect(lambda _, r=current_row: self.open_delete_dialog(r))
 
         children = self.findChildren(QPushButton)
         if children:
@@ -105,6 +107,13 @@ class MainWindow(QMainWindow):
             for column_number, column_data in enumerate(row_data):
                 self.table.setItem(row_number, column_number, QTableWidgetItem(str(column_data)))
 
+    def open_edit_dialog(self, row):
+        MainWindow.edit(row)
+        self.load_data()
+
+    def open_delete_dialog(self, row):
+        MainWindow.delete(row)
+        self.load_data()
     # -------------------------
     # Static utility methods
     # -------------------------
@@ -124,14 +133,14 @@ class MainWindow(QMainWindow):
 
 
     @staticmethod
-    def edit():
-        dialog = EditDialog()
+    def edit(row):
+        dialog = EditDialog(row)
         dialog.exec()
 
 
     @staticmethod
-    def delete():
-        dialog = DeleteDialog()
+    def delete(row):
+        dialog = DeleteDialog(row)
         dialog.exec()
 
 
@@ -151,44 +160,45 @@ class AboutDialogMessage(QMessageBox):
 
         self.setText(content)
 
+
+# noinspection PyTypeChecker
 class EditDialog(QDialog):
-    def __init__(self):
+    def __init__(self, row):
         super().__init__(parent=None)
+        self.row = row
         self.setWindowTitle("Update Student Data")
         self.setFixedWidth(300)
         self.setFixedHeight(300)
 
         layout = QVBoxLayout()
 
-        index = student_management_sys.table.currentRow()
-
-        self.student_id = student_management_sys.table.item(index, 0).text()
-
-        student_name = student_management_sys.table.item(index, 1).text()
+        student_name = MainWindow.instance.table.item(row, 1).text()
         self.student_name = QLineEdit(student_name)
         self.student_name.setPlaceholderText("Name")
         layout.addWidget(self.student_name)
 
-        course_name = student_management_sys.table.item(index, 2).text()
+        course_name = MainWindow.instance.table.item(row, 2).text()
         self.course_name = QComboBox(parent=None)
         courses = ["Biology", "Math", "Astronomy", "Physics"]
         self.course_name.addItems(courses)
         self.course_name.setCurrentText(course_name)
         layout.addWidget(self.course_name)
 
-        student_mobile = student_management_sys.table.item(index, 3).text()
+        student_mobile = MainWindow.instance.table.item(row, 3).text()
         self.mobile = QLineEdit(student_mobile)
         self.mobile.setPlaceholderText("Mobile")
         layout.addWidget(self.mobile)
 
         button = QPushButton("Submit")
-        button.clicked.connect(self.update_student)
+        button.clicked.connect(lambda _, r=row: self.update_student(r))
         layout.addWidget(button)
 
         self.setLayout(layout)
 
-    def update_student(self):
-        if not self.student_name or not self.mobile:
+    def update_student(self, row):
+        student_id = MainWindow.instance.table.item(row, 0).text()
+
+        if not self.student_name.text().strip() or not self.mobile.text().strip():
             QMessageBox.warning(self, "Missing Info", "Please fill in all fields.")
             return
 
@@ -196,16 +206,19 @@ class EditDialog(QDialog):
             connection = DatabaseConnection()
             connection.query("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
                            (self.student_name.text(), self.course_name.currentText(), self.mobile.text(),
-                            self.student_id))
+                            student_id))
             MainWindow.instance.load_data()
             QMessageBox.information(None, "Success", "Student updated successfully.")
             self.close()
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
 
+
+# noinspection PyTypeChecker
 class DeleteDialog(QDialog):
-    def __init__(self):
+    def __init__(self, row):
         super().__init__(parent=None)
+        self.row = row
         self.setWindowTitle("Delete Student Data")
 
         layout = QGridLayout(parent=None)
@@ -218,15 +231,13 @@ class DeleteDialog(QDialog):
         layout.addWidget(no, 1, 1)
         self.setLayout(layout)
 
-        yes.clicked.connect(self.delete_student)
+        yes.clicked.connect(lambda _, r=row: self.delete_student(r))
 
-    def delete_student(self):
-        index = student_management_sys.table.currentRow()
-        student_id = student_management_sys.table.item(index, 0).text()
-
+    def delete_student(self, row):
+        sid = MainWindow.instance.table.item(row, 0).text()
         try:
             connection = DatabaseConnection()
-            connection.query("""DELETE FROM students WHERE id = ?""", (student_id,))
+            connection.query("""DELETE FROM students WHERE id = ?""", (sid,))
             MainWindow.instance.load_data()
             confirmation_widget = QMessageBox()
             confirmation_widget.setText("The record was deleted successfully")
@@ -235,6 +246,8 @@ class DeleteDialog(QDialog):
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
 
+
+# noinspection PyTypeChecker
 class InsertDialog(QDialog):
     def __init__(self):
         super().__init__(parent=None)
@@ -284,6 +297,7 @@ class InsertDialog(QDialog):
             QMessageBox.information(None, "Database Error", str(e))
 
 
+# noinspection PyTypeChecker
 class SearchDialog(QDialog):
     def __init__(self):
         super().__init__(parent=None)
@@ -311,23 +325,23 @@ class SearchDialog(QDialog):
             rows = list(result)
             print(rows)
 
-            student_management_sys.table.clearSelection()
+            MainWindow.instance.table.clearSelection()
 
-            items = student_management_sys.table.findItems(name, Qt.MatchFlag.MatchFixedString)
+            items = MainWindow.instance.table.findItems(name, Qt.MatchFlag.MatchFixedString)
             if items:
                 for item in items:
                     print(item)
-                    student_management_sys.table.item(item.row(), 1).setSelected(True)
-                    student_management_sys.table.scrollToItem(item)
+                    MainWindow.instance.table.item(item.row(), 1).setSelected(True)
+                    MainWindow.instance.table.scrollToItem(item)
                 self.close()
             else:
                 QMessageBox.information(None, "Info", "Student not found")
                 print("Not found")
         except DatabaseError as e:
-            QMessageBox.critical(None, "Database Error", str(e))
+            QMessageBox.critical( None, "Database Error", str(e))
 
 app = QApplication(sys.argv)
-student_management_sys = MainWindow()
-MainWindow.instance.load_data()
-student_management_sys.show()
+window = MainWindow()
+window.load_data()
+window.show()
 sys.exit(app.exec())
