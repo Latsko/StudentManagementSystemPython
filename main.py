@@ -7,16 +7,23 @@ from PyQt6.QtWidgets import QApplication, QLineEdit, QPushButton, QMainWindow, \
     QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QComboBox, QToolBar, \
     QStatusBar, QLabel, QGridLayout, QMessageBox, QHeaderView
 
-
+# -------------------------
+# Custom Exception for DB
+# -------------------------
 class DatabaseError(Exception):
     """Custom exception for db-related errors"""
     pass
 
+# -------------------------
+# Database Connection Wrapper
+# -------------------------
 class DatabaseConnection:
+    """Handles SQLite connection and queries"""
     def __init__(self, database_file="database.db"):
         self.database_file = database_file
 
     def query(self, sql, params=(), fetch=False):
+        """Execute SQL query with optional fetch; raise DatabaseError on failure"""
         try:
             with sqlite3.connect(self.database_file) as connection:
                 cursor = connection.cursor()
@@ -28,49 +35,61 @@ class DatabaseConnection:
         except sqlite3.Error as error:
             raise DatabaseError(f"Database Error: {error}")
 
+# -------------------------
+# Main Application Window
+# -------------------------
 class MainWindow(QMainWindow):
-    instance = None
+    """Main GUI window for student management"""
+    instance = None  # Class-level reference for dialogs to access main window
+
     def __init__(self):
         super().__init__(parent=None)
-        # Class-level reference to the currently active instance.
-        # This allows static methods and other dialogs to access the main window
-        # without relying on a global variable like `student_management_sys`.
         MainWindow.instance = self
         self.setWindowTitle("Student Management System")
         self.setFixedWidth(800)
         self.setFixedHeight(500)
 
-        # Menu bar setup
+        # -------------------------
+        # Menu Bar Setup
+        # -------------------------
         file_menu_item = self.menuBar().addMenu("&File")
         help_menu_item = self.menuBar().addMenu("&Help")
         edit_menu_item = self.menuBar().addMenu("&Edit")
 
+        # Add Student action
         add_student_action = QAction(QIcon("icons/add.png"), "Add Student", self)
         add_student_action.triggered.connect(self.insert)
         file_menu_item.addAction(add_student_action)
 
+        # About action
         about_action = QAction("About", self)
         help_menu_item.addAction(about_action)
         about_action.setMenuRole(QAction.MenuRole.NoRole)
         about_action.triggered.connect(self.about)
 
+        # Search action
         search_action = QAction(QIcon("icons/search.png"), "Search", self)
         search_action.triggered.connect(self.search)
         edit_menu_item.addAction(search_action)
 
-        # Table setup
+        # -------------------------
+        # Table Setup
+        # -------------------------
         self.table = QTableWidget(parent=None)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(("Id", "Name", "Course", "Mobile"))
         self.table.verticalHeader().setVisible(False)
         self.setCentralWidget(self.table)
+
+        # Appearance and UX
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet("alternate-background-color: #f2f2f2; background-color: #ffffff;")
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setToolTip("Click a row to select a student")
-        # Make the horizontal header text bold and colored
+
+        # Header styling
         self.table.horizontalHeader().setHighlightSections(False)
         self.table.horizontalHeader().setStyleSheet(
             "QHeaderView::section {"
@@ -81,32 +100,40 @@ class MainWindow(QMainWindow):
             "}"
         )
 
-        # Menu toolbar setup
+        # -------------------------
+        # Toolbar Setup
+        # -------------------------
         toolbar = QToolBar()
         toolbar.setMovable(True)
         self.addToolBar(toolbar)
         toolbar.addAction(add_student_action)
         toolbar.addAction(search_action)
 
-        # Menu status bar setup
+        # -------------------------
+        # Status Bar Setup
+        # -------------------------
         self.statusBar = QStatusBar(parent=None)
         self.setStatusBar(self.statusBar)
 
-        # When cell is clicked
+        # Connect table click to handler
         self.table.cellClicked.connect(self.cell_clicked)
 
+    # -------------------------
+    # Handle table row click
+    # -------------------------
     def cell_clicked(self, row):
         student_id = self.table.item(row, 0).text()
 
+        # Create Edit and Delete buttons dynamically
         edit_button = QPushButton("Edit Record")
         edit_button.clicked.connect(lambda _, s=student_id: self.open_edit_dialog(s))
-
         delete_button = QPushButton("Delete Record")
         delete_button.clicked.connect(lambda _, s=student_id: self.open_delete_dialog(s))
 
         edit_button.setToolTip("Edit the selected student")
         delete_button.setToolTip("Delete the selected student")
 
+        # Remove previous buttons from status bar
         children = self.findChildren(QPushButton)
         if children:
             for child in children:
@@ -115,6 +142,9 @@ class MainWindow(QMainWindow):
         self.statusBar.addWidget(edit_button)
         self.statusBar.addWidget(delete_button)
 
+    # -------------------------
+    # Load data from database into table
+    # -------------------------
     def load_data(self):
         connection = DatabaseConnection()
         result = connection.query("SELECT * FROM students", fetch=True)
@@ -126,6 +156,9 @@ class MainWindow(QMainWindow):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row_number, column_number, item)
 
+    # -------------------------
+    # Open dialogs
+    # -------------------------
     def open_edit_dialog(self, sid):
         MainWindow.edit(sid)
         self.load_data()
@@ -133,42 +166,45 @@ class MainWindow(QMainWindow):
     def open_delete_dialog(self, sid):
         MainWindow.delete(sid)
         self.load_data()
+
     # -------------------------
-    # Static utility methods
+    # Static utility methods for menus
     # -------------------------
-    # These methods are declared static because they do not rely on
-    # any instance-specific data (e.g., self.table, self.statusBar).
-    # Instead, they simply open modal dialogs that operate independently.
     @staticmethod
     def insert():
+        """Open InsertDialog"""
         dialog = InsertDialog()
         dialog.exec()
 
-
     @staticmethod
     def search():
+        """Open SearchDialog"""
         dialog = SearchDialog()
         dialog.exec()
 
-
     @staticmethod
     def edit(sid):
+        """Open EditDialog"""
         dialog = EditDialog(sid)
         dialog.exec()
 
-
     @staticmethod
     def delete(sid):
+        """Open DeleteDialog"""
         dialog = DeleteDialog(sid)
         dialog.exec()
 
-
     @staticmethod
     def about():
+        """Open AboutDialog"""
         dialog = AboutDialogMessage()
         dialog.exec()
 
+# -------------------------
+# About Dialog
+# -------------------------
 class AboutDialogMessage(QMessageBox):
+    """Shows information about the application"""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("About")
@@ -176,12 +212,13 @@ class AboutDialogMessage(QMessageBox):
         This app was created on the demand of a University Python course
         and should contain all the necessary knowledge for it's completion.
         """
-
         self.setText(content)
 
-
-# noinspection PyTypeChecker
+# -------------------------
+# Edit Student Dialog
+# -------------------------
 class EditDialog(QDialog):
+    """Dialog for editing a student's data"""
     def __init__(self, sid):
         super().__init__(parent=None)
         self.student_id = sid
@@ -191,16 +228,20 @@ class EditDialog(QDialog):
 
         layout = QVBoxLayout()
 
+        # Load student data
         try:
             connection = DatabaseConnection()
-            result = connection.query("SELECT name, course, mobile FROM students WHERE id = ?",
-                                      (sid,), fetch=True)
+            result = connection.query(
+                "SELECT name, course, mobile FROM students WHERE id = ?",
+                (sid,), fetch=True
+            )
             if not result:
                 QMessageBox.critical(self, "Error", "Student not found.")
                 self.close()
                 return
             name, course, mobile = map(str, result[0])
 
+            # Input fields
             self.student_name = QLineEdit(name)
             self.student_name.setPlaceholderText("Name")
             layout.addWidget(self.student_name)
@@ -220,12 +261,16 @@ class EditDialog(QDialog):
             self.close()
             return
 
+        # Submit button
         button = QPushButton("Submit")
         button.clicked.connect(lambda _, s=sid: self.update_student(s))
         layout.addWidget(button)
 
         self.setLayout(layout)
 
+    # -------------------------
+    # Update student in DB
+    # -------------------------
     def update_student(self, sid):
         if not self.student_name.text().strip() or not self.mobile.text().strip():
             QMessageBox.warning(self, "Missing Info", "Please fill in all fields.")
@@ -233,17 +278,22 @@ class EditDialog(QDialog):
 
         try:
             connection = DatabaseConnection()
-            connection.query("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
-                           (self.student_name.text(), self.course_name.currentText(), self.mobile.text(),
-                            sid))
+            connection.query(
+                "UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?",
+                (self.student_name.text(), self.course_name.currentText(),
+                 self.mobile.text(), sid)
+            )
             MainWindow.instance.load_data()
             QMessageBox.information(None, "Success", "Student updated successfully.")
             self.close()
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
 
-# noinspection PyTypeChecker
+# -------------------------
+# Delete Student Dialog
+# -------------------------
 class DeleteDialog(QDialog):
+    """Dialog to confirm and delete a student"""
     def __init__(self, sid):
         super().__init__(parent=None)
         self.sid = sid
@@ -259,12 +309,14 @@ class DeleteDialog(QDialog):
         layout.addWidget(no, 1, 1)
         self.setLayout(layout)
 
+        # Connect buttons
         yes.clicked.connect(lambda _, s=sid: self.delete_student(s))
 
+    # Delete student from DB
     def delete_student(self, sid):
         try:
             connection = DatabaseConnection()
-            connection.query("""DELETE FROM students WHERE id = ?""", (sid,))
+            connection.query("DELETE FROM students WHERE id = ?", (sid,))
             MainWindow.instance.load_data()
             confirmation_widget = QMessageBox()
             confirmation_widget.setText("The record was deleted successfully")
@@ -273,8 +325,11 @@ class DeleteDialog(QDialog):
         except DatabaseError as e:
             QMessageBox.critical(None, "Database Error", str(e))
 
-# noinspection PyTypeChecker
+# -------------------------
+# Insert Student Dialog
+# -------------------------
 class InsertDialog(QDialog):
+    """Dialog to insert a new student"""
     def __init__(self):
         super().__init__(parent=None)
         self.setWindowTitle("Insert Student Data")
@@ -283,12 +338,13 @@ class InsertDialog(QDialog):
 
         layout = QVBoxLayout()
 
+        # Input fields
         self.student_name = QLineEdit()
         self.student_name.setPlaceholderText("Name")
         layout.addWidget(self.student_name)
 
         self.course_name = QComboBox(parent=None)
-        courses =  ["Biology", "Math", "Astronomy", "Physics"]
+        courses = ["Biology", "Math", "Astronomy", "Physics"]
         self.course_name.addItems(courses)
         layout.addWidget(self.course_name)
 
@@ -296,12 +352,14 @@ class InsertDialog(QDialog):
         self.mobile.setPlaceholderText("Mobile")
         layout.addWidget(self.mobile)
 
+        # Submit button
         button = QPushButton("Submit")
         button.clicked.connect(self.add_student)
         layout.addWidget(button)
 
         self.setLayout(layout)
 
+    # Add new student to DB
     def add_student(self):
         name = self.student_name.text()
         course = self.course_name.itemText(self.course_name.currentIndex())
@@ -313,23 +371,26 @@ class InsertDialog(QDialog):
 
         try:
             connection = DatabaseConnection()
-            connection.query("INSERT INTO students (name, course, mobile) VALUES (?, ?, ?)",
-                           (name, course, mobile))
-
+            connection.query(
+                "INSERT INTO students (name, course, mobile) VALUES (?, ?, ?)",
+                (name, course, mobile)
+            )
             MainWindow.instance.load_data()
             QMessageBox.information(None, "Success", "Student added successfully")
             self.close()
         except DatabaseError as e:
             QMessageBox.information(None, "Database Error", str(e))
 
-
-# noinspection PyTypeChecker
+# -------------------------
+# Search Dialog
+# -------------------------
 class SearchDialog(QDialog):
+    """Dialog to search students by name"""
     def __init__(self):
         super().__init__(parent=None)
-
         self.setWindowTitle("Search Student")
         layout = QVBoxLayout()
+
         self.searched_student_name = QLineEdit()
         self.searched_student_name.setPlaceholderText("Name")
         layout.addWidget(self.searched_student_name)
@@ -340,6 +401,7 @@ class SearchDialog(QDialog):
 
         self.setLayout(layout)
 
+    # Search student in DB and highlight in table
     def search_student(self):
         name = self.searched_student_name.text()
         if not name:
@@ -366,6 +428,9 @@ class SearchDialog(QDialog):
         except DatabaseError as e:
             QMessageBox.critical( None, "Database Error", str(e))
 
+# -------------------------
+# Application Entry Point
+# -------------------------
 app = QApplication(sys.argv)
 window = MainWindow()
 window.load_data()
